@@ -1,0 +1,151 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholar Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="w-80 bg-white h-screen p-4">
+            <h2 class="text-xl font-bold mb-4">Past Searches</h2>
+            <ul>
+                {% for key, value in cache.items() %}
+                <li class="mb-2 flex justify-between items-center">
+                    <a href="{{ url_for('results', author_id=value.authorId, start_year=value.start_year, end_year=value.end_year) }}" class="text-blue-500 hover:text-blue-700 flex-1">
+                        {{ value.author_name }} ({{ value.start_year }}-{{ value.end_year }})
+                    </a>
+                    <form action="{{ url_for('delete_result', cache_key=key) }}" method="post" class="inline">
+                        <div class="text-right">
+                            <button type="submit" class="bg-white-500 hover:bg-red-500 text-black hover:text-white font-bold py-1 rounded inline-flex items-center">
+                                <svg class="w-6 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
+                        </div>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <!-- Main content -->
+        <div class="flex-1 p-8">
+            <h1 class="text-3xl font-bold mb-8">Scholar Analyzer</h1>
+            <form action="{{ url_for('index') }}" method="post" class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="author_name">
+                        Name
+                    </label>
+                    <input class="shadow appearance-none border rounded w-1/8 py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" style="min-width: 250px;" id="author_name" name="author_name" type="text" required>
+                </div>
+                <!-- Start Year and End Year fields side by side -->
+                <div class="flex justify-between mb-4 w-1/6">
+                    <div class="flex-1"  style="min-width: 100px;">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="start_year">
+                            Start Year
+                        </label>
+                        <input class="shadow appearance-none border rounded w-1/2 py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" style="min-width: 100px;" id="start_year" name="start_year" type="number" required>
+                    </div>
+                    <div class="flex-1" style="min-width: 100px;">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="end_year">
+                            End Year
+                        </label>
+                        <input class="shadow appearance-none border rounded w-1/2 py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" style="min-width: 100px;" id="end_year" name="end_year" type="number" required>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    <button id="searchButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline" type="submit">
+                        Search
+                    </button>
+                
+                    <!-- Add some left margin to the spinner for spacing -->
+                    <div id="spinner" class="hidden ml-2">
+                        <div class="spinner-border animate-spin inline-block w-8 h-8 border-4 rounded-full" role="status">
+                            <span class="visually-hidden"></span>
+                        </div>
+                    </div>
+                    <div id="actionLog" class="ml-4 flex-1">
+                        <p class="text-sm text-gray-600"></p>
+                        <ul id="logList" class="text-xs list-disc list-inside text-gray-500"></ul>
+                    </div>
+                </div>
+                <br><br>
+                <ul>
+                    {% if search_performed %}
+                        {% if authors_list|length == 0 %}
+                            <li>No authors found.</li>
+                        {% elif authors_list|length == 1 %}
+                            <script>
+                                window.location.href = "{{ url_for('results', author_id=authors_list[0].authorId) }}" + "&start_year=" + "{{ startYear }}" + "&end_year=" + "{{ endYear }}";
+                            </script>
+                        {% else %}
+                            <li>Found several authors by that name...</li>
+                            {% for author in authors_list %}
+                            <li>
+                                {{ loop.index }}.
+                                <a class="search-result-item" href="{{ url_for('results', author_id=author.authorId, start_year=startYear, end_year=endYear, index=loop.index) }}">{{ author.name }}</a>
+                                {% if author.affiliations|length > 0 %}
+                                ({{ author.affiliations|join(', ') }})
+                                {% endif %}
+                                <!-- to do: add author fields of study from the variable author.fields -->
+                                {% if author.fields|length > 0 %}
+                                ({{ author.fields|join(', ') }})
+                                {% endif %}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                
+                
+                <script>
+                    document.querySelector('form').addEventListener('submit', function() {
+                        document.getElementById('spinner').classList.remove('hidden');
+                        document.getElementById('searchButton').textContent = 'Loading...';
+                    });
+
+                    document.querySelectorAll('.search-result-item').forEach(function(item) {
+                        item.addEventListener('click', function() {
+                            document.getElementById('spinner').classList.remove('hidden');
+                        });
+                    });
+
+                    const evtSource = new EventSource("/stream-logs");
+                    evtSource.onmessage = function(event) {
+                        const logDiv = document.getElementById("logList");
+                        const message = document.createElement("p");
+                        message.textContent = event.data;
+                        logDiv.appendChild(message);
+                    };
+                </script>
+                
+                <style>
+                    .hidden {
+                        display: none;
+                    }
+                    .spinner-border {
+                        display: inline-block;
+                        border-color: transparent;
+                        border-top-color: #3490dc; /* Use your color */
+                    }
+                    .animate-spin {
+                        animation: spin 1s linear infinite;
+                    }
+                    @keyframes spin {
+                        to {
+                            transform: rotate(360deg);
+                        }
+                    }
+                    /* Add margin-left for spacing between button and spinner */
+                    .ml-2 {
+                        margin-left: 0.5rem; /* Adjust as needed */
+                    }
+                </style>
+                
+            </form>
+        </div>
+    </div>
+</body>
+</html>
