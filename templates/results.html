@@ -111,7 +111,22 @@
             <a href="{{ url_for('index') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Back to Search</a>
         </div>
     </div>
+    <!-- Help Button -->
+    <button id="helpBtn" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+        Help
+    </button>
+    <!-- Slide-Out Panel -->
+<!-- Slide-Out Panel -->
+    <div id="helpPanel" class="p-4">
+        <h2 class="font-bold text-lg">Help Guide</h2>
+        <p><strong>Abstract Viewing:</strong> Click on any paper title to view its abstract. Click elsewhere to close it.</p>
 
+        <p><strong>Expand/Collapse Authors:</strong> Click a truncated authors list (indicated by "...") to expand and view all authors. Click again to collapse the list.</p>
+
+        <p><strong>Highlight Papers:</strong> Click either co-author names or topic names (in the trends chart) to highlight articles which are related to them.</p>
+
+        <p><strong>Clear Highlights:</strong> Remove all highlights from the search results.</p>
+    </div>
     <div id="abstractModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center" onclick="closeModal(event)">
         <div class="p-5 border w-1/4 shadow-lg rounded-md bg-white">
             <div id="abstractTitle" class="mt-3 text-center"">
@@ -124,6 +139,20 @@
     </div>
 
     <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set the initial transform state in JavaScript to match the CSS
+            var panel = document.getElementById('helpPanel');
+            panel.style.transform = 'translateX(110%)'; // Ensure this matches the CSS value
+        });
+
+        document.getElementById('helpBtn').addEventListener('click', function() {
+            var panel = document.getElementById('helpPanel');
+            if (panel.style.transform === 'translateX(110%)') { // Make sure this matches the initial state
+                panel.style.transform = 'translateX(0)';
+            } else {
+                panel.style.transform = 'translateX(110%)';
+            }
+        });
         document.addEventListener('DOMContentLoaded', function() {
             // Event listener for the Clear Highlights button
             document.getElementById('clearHighlights').addEventListener('click', function() {
@@ -351,6 +380,27 @@
         .paper-item.highlight {
             background-color: yellow; /* Or any other highlight color */
         }
+    /* Help Button Style */
+    #helpBtn {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000; /* Ensure it's above other content */
+    }
+
+    /* Slide-Out Panel Style */
+    #helpPanel {
+        position: fixed;
+        bottom: 80px; /* Adjust based on the button's size and desired margin */
+        right: 20px;
+        width: 300px; /* Adjust width as needed */
+        height: auto; /* Adjust height as needed */
+        background-color: white;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        z-index: 999; /* Just below the button to avoid overlap */
+        transform: translateX(110%); /* Initially hidden */
+        transition: transform 0.3s ease-in-out;
+    }
     </style>
 </body>
 </html>
