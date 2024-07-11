@@ -1,5 +1,4 @@
 flask==3.0.3
 requests==2.32.3
-beautifulsoup4==4.12.3
 openai==1.35.10
-thefuzz==0.22.1
+scikit-learn==1.4.1
