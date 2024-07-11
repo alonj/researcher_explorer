@@ -109,9 +109,20 @@
                         {% endif %}
                     {% endif %}
                 </ul>
-                
+                <div class="mb-4">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="debug_mode" name="debug_mode" class="form-checkbox h-5 w-5 text-gray-600" tabindex="4" checked><span class="ml-2 text-gray-700">Enable Verbose Errors</span>
+                        <input type="hidden" id="debug_mode_hidden" name="debug_mode" value="on">
+                    </label>
+                </div>
                 
                 <script>
+                    function updateDebugMode() {
+                        // Assuming the checkbox has an id of 'debug_mode'
+                        var isChecked = document.getElementById('debug_mode').checked;
+                        // Assuming you have a hidden input for passing the debug mode
+                        document.getElementById('debug_mode_hidden').value = isChecked ? 'on' : 'off';
+                    }
                     document.querySelector('form').addEventListener('submit', function() {
                         document.getElementById('spinner').classList.remove('hidden');
                         document.getElementById('searchButton').textContent = 'Loading...';
@@ -154,7 +165,6 @@
                         margin-left: 0.5rem; /* Adjust as needed */
                     }
                 </style>
-                
             </form>
         </div>
     </div>

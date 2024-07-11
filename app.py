@@ -142,6 +142,7 @@ def results():
     start_year = request.args.get('start_year')
     end_year = request.args.get('end_year')
     index = request.args.get('index', -1)
+    debug_mode = request.args.get('debug_mode') == 'on'
     
     cache_key = hashlib.md5(f"{authorId}{start_year}{end_year}".encode()).hexdigest()
     
@@ -151,7 +152,8 @@ def results():
         try:
             result = get_results(authorId, author_name, start_year, end_year)
         except Exception as e:
-            raise e
+            if debug_mode:
+                raise e
             return render_template('error.html', error=e)
         result['index'] = index
         cache[cache_key] = result
@@ -162,7 +164,8 @@ def results():
     try:
         return render_template('results.html', result=result, cache=cache, pretty_name=author_name, index=index)
     except Exception as e:
-        raise e
+        if debug_mode:
+            raise e
         return render_template('error.html', error=e)
 
 @app.route('/logs')

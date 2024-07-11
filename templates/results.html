@@ -16,32 +16,15 @@
             <ul>
                 {% for key, value in cache.items() %}
                 <li class="mb-2 flex justify-between items-center">
-                    <!-- if value.index is not -1, add string with the index in parentheses -->
-                    <script>
-                        // if value.index doesnt exist, set it to -1
-                        if (!{{ value.index }}) {
-                            const index = -1;
-                        }
-                        else {
-                            const index = {{ value.index }};
-                        }
-                        if (index !== -1) {
-                            const indexString = ` (${value.index})`;
-                        }
-                        else {
-                            const indexString = '';
-                        }
-                    </script>
-
                     {% if value.authorId == result.authorId %}
                     <!-- Current page, not clickable -->
                     <span class="bg-gray-200 text-black rounded items-center flex-1">
-                        {{ value.author_name }}{{ indexString }} ({{ value.start_year }}-{{ value.end_year }})
+                        {{ value.author_name }} ({{ value.start_year }}-{{ value.end_year }})
                     </span>
                     {% else %}
                         <!-- Other pages, clickable -->
                         <a href="{{ url_for('results', author_id=value.authorId, author_name=value.author_name, start_year=value.start_year, end_year=value.end_year) }}" class="text-blue-500 hover:text-blue-700 flex-1">
-                            {{ value.author_name }}{{ indexString }} ({{ value.start_year }}-{{ value.end_year }})
+                            {{ value.author_name }} ({{ value.start_year }}-{{ value.end_year }})
                         </a>
                     {% endif %}
                     <form action="{{ url_for('delete_result', cache_key=key) }}" method="post" class="inline">
@@ -286,7 +269,6 @@
                     });
                     document.querySelectorAll('.paper-item').forEach(function(paperItem) {
                         const coAuthorNames = paperItem.textContent;
-                        console.log(coAuthorNames); // Debugging line
                         if (coAuthorNames.includes(clickedCoAuthorName)) {
                             paperItem.classList.add('highlight');
                         }
@@ -343,7 +325,6 @@
                             onClick: function(e, legendItem, legend) {
                                 var index = legendItem.datasetIndex;
                                 var label = legend.chart.data.datasets[index].label;
-                                console.log("Clicked label:", label); // Debugging line
                                 highlightPapersByTopic(label);
                             }
                         }
