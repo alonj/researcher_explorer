@@ -10,6 +10,8 @@ log_messages = []
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    
+    log_messages.clear()
     search_performed = False
     if request.method == 'POST':
         name = request.form['author_name']
@@ -38,15 +40,32 @@ def index():
 
 @app.route('/delete/<cache_key>', methods=['POST'])
 def delete_result(cache_key):
-    # Remove the result from the cache
+    # Extract current page info from the form
+    current_author_id = request.form.get('current_author_id')
+    current_start_year = request.form.get('current_start_year')
+    current_end_year = request.form.get('current_end_year')
+
+    # Check if the item being deleted is the current page
     if cache_key in cache:
-        del cache[cache_key]
-        # Update cache on disk
-        with open('cache.json', 'w') as f:
-            json.dump(cache, f)
+        item = cache[cache_key]
+        if (str(item['authorId']) == current_author_id and
+            str(item['start_year']) == current_start_year and
+            str(item['end_year']) == current_end_year):
+            # If deleting the current page, redirect to index
+            del cache[cache_key]
+            with open('cache.json', 'w') as f:
+                json.dump(cache, f)
+            return redirect(url_for('index'))
+        else:
+            # If not, delete and stay on the current page
+            del cache[cache_key]
+            with open('cache.json', 'w') as f:
+                json.dump(cache, f)
+            return redirect(request.referrer)
     return redirect(url_for('index'))
 
-def get_results(authorId, start_year, end_year):
+def get_results(authorId, author_name, start_year, end_year):
+
     start_year = int(start_year)
     end_year = int(end_year)
     result = {
@@ -55,25 +74,24 @@ def get_results(authorId, start_year, end_year):
         "end_year": end_year,
         "papers": [],
         "analysis": "",
-        "author_name": "",
+        "author_name": author_name,
         "coauthors_histogram": {},
         "paper_topics": {},
     }
 
     log_messages.append("Getting author details...")
-    author_props = scholar_analyzer.author_details(authorId)
-    author_name = author_props['name']
+    # author_props = scholar_analyzer.author_details(authorId)
+    # author_name = author_props['name']
 
     log_messages.append("Fetching papers...")
     papers, coauthors_histogram = scholar_analyzer.get_papers(authorId, author_name, start_year, end_year)
     if not papers:
         if start_year == end_year:
-            result["error"] = f"No papers found for {author_props['name']} in {start_year}"
+            result["error"] = f"No papers found for {author_name} in {start_year}"
         else:
-            result["error"] = f"No papers found for {author_props['name']} between {start_year} and {end_year}"
+            result["error"] = f"No papers found for {author_name} between {start_year} and {end_year}"
         return result
     result["coauthors_histogram"] = coauthors_histogram
-    result["author_name"] = author_name
 
     log_messages.append("Analyzing research...")
     abstracts = [f"{paper['title']}\n{paper['abstract']}" for paper in papers if paper['abstract']]
@@ -120,6 +138,7 @@ def stream_logs():
 @app.route('/results')
 def results():
     authorId = request.args.get('author_id')
+    author_name = request.args.get('author_name')
     start_year = request.args.get('start_year')
     end_year = request.args.get('end_year')
     index = request.args.get('index', -1)
@@ -130,19 +149,20 @@ def results():
         result = cache[cache_key]
     else:
         try:
-            result = get_results(authorId, start_year, end_year)
+            result = get_results(authorId, author_name, start_year, end_year)
         except Exception as e:
+            raise e
             return render_template('error.html', error=e)
         result['index'] = index
         cache[cache_key] = result
 
-    author_name = result.get('author_name').title()
     # update cache on disk
     with open('cache.json', 'w') as f:
         json.dump(cache, f)
     try:
         return render_template('results.html', result=result, cache=cache, pretty_name=author_name, index=index)
     except Exception as e:
+        raise e
         return render_template('error.html', error=e)
 
 @app.route('/logs')

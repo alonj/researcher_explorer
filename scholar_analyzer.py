@@ -1,12 +1,10 @@
 import requests
-from datetime import datetime
 import math
 from sklearn.cluster import KMeans
 import openai
 import os
 from openai import OpenAI
 from collections import Counter, defaultdict
-from thefuzz import fuzz
 import logging
 
 logger = logging.getLogger(__name__)
@@ -40,6 +38,42 @@ def gpt_call(prompt_text, model="gpt-4o", max_tokens=256, model_client=None):
             )
         return model_response.choices[0].message.content
 
+def author_linking(authors):
+    author2cluster = {}
+    cluster2author = defaultdict(set)
+    cluster_id = 0
+    for i, (n1, d1) in enumerate(authors):
+        for j, (n2, d2) in enumerate(authors[i+1:], i+1):
+            if len(d1 & d2) > 0 and n1 == n2:
+                if (i not in author2cluster) and j in author2cluster: # i is not in clusters
+                    curr_cluster_id = author2cluster[j]
+                    author2cluster[i] = curr_cluster_id
+                    cluster2author[curr_cluster_id].add(i)
+                elif i in author2cluster and (j not in author2cluster): # j is not in clusters
+                    curr_cluster_id = author2cluster[i]
+                    author2cluster[j] = curr_cluster_id
+                    cluster2author[curr_cluster_id].add(j)
+                elif i not in author2cluster and j not in author2cluster: # both are not in clusters
+                    author2cluster[i] = cluster_id
+                    author2cluster[j] = cluster_id
+                    cluster2author[cluster_id].add(i)
+                    cluster2author[cluster_id].add(j)
+                    cluster_id += 1
+                else: # both are in clusters
+                    cluster1 = author2cluster[i]
+                    cluster2 = author2cluster[j]
+                    if cluster1 != cluster2:
+                        for author in cluster2author[cluster2]:
+                            author2cluster[author] = cluster1
+                            cluster2author[cluster1].add(author)
+                        del cluster2author[cluster2]
+    for i, _ in enumerate(authors):
+        if i not in author2cluster:
+            author2cluster[i] = cluster_id
+            cluster2author[cluster_id].add(i)
+            cluster_id += 1
+    return cluster2author
+
 def author_fields_of_study(authorId):
     rsp = requests.get(f'https://api.semanticscholar.org/graph/v1/author/{authorId}', params={'fields': 'papers.s2FieldsOfStudy'}, headers=ss_headers)
     rsp.raise_for_status()
@@ -47,33 +81,53 @@ def author_fields_of_study(authorId):
     for paper in rsp.json()['papers']:
         for field in paper['s2FieldsOfStudy']:
             fields_counter.append(field['category'])
-    fields_counter = Counter(fields_counter).most_common(2)
-    return [field[0] for field in fields_counter]
+    fields_counter = Counter(fields_counter)
+    return fields_counter
 
 def resolve_author(name):
     rsp = requests.get('https://api.semanticscholar.org/graph/v1/author/search',
                         params={'query': f"{name}", 'fields': 'authorId,name,affiliations,citationCount'},
                         headers=ss_headers)
     rsp.raise_for_status()
-
     results = rsp.json()
+
     if results['total'] == 0:  # no results
         return []
-    # get fuzzy match score for each author
-    # for author in results['data']:
-    #     author['fuzzy_score'] = fuzz.ratio(name.lower(), author['name'].lower())
-    # # sort by fuzzy score and citation count
-    # results['data'] = sorted(results['data'], key=lambda x: (x['fuzzy_score'], x['citationCount']), reverse=True)[:5]
     results['data'] = sorted(results['data'], key=lambda x: x['citationCount'], reverse=True)[:5]
     
     if len(results['data']) <= 1:
         return results['data']
-    
-    results_final = []
+    author_fields = []
     for author in results['data']:
-        author['fields'] = author_fields_of_study(author['authorId'])
-        results_final.append(author)
-    return results_final
+        author_fields.append(author_fields_of_study(author['authorId']))
+
+    cluster_authors = author_linking([(results['data'][idx]['name'], set([i[0] for i in a.most_common(3)])) for idx, a in enumerate(author_fields)])
+    pseudo_authors = []
+    for cluster in cluster_authors:
+        authorId = ",".join([results['data'][i]['authorId'] for i in cluster_authors[cluster]])
+        citationCount = sum([results['data'][i]['citationCount'] for i in cluster_authors[cluster]])
+        authorName = results['data'][list(cluster_authors[cluster])[0]]['name']
+        
+        # merge the fields of study
+        fields = Counter()
+        for i in cluster_authors[cluster]:
+            fields += author_fields[i]
+        fields = [i[0] for i in fields.most_common(2)]
+
+        # merge affiliations
+        affiliations = set()
+        for i in cluster_authors[cluster]:
+            affiliations |= set(results['data'][i]['affiliations'])
+        affiliations = list(affiliations)
+        
+        pseudo_authors.append({
+            'authorId': authorId,
+            'citationCount': citationCount,
+            'name': authorName,
+            'fields': fields,
+            'affiliations': affiliations
+        })
+    return pseudo_authors
 
 def author_details(author_id):
     rsp = requests.get(f'https://api.semanticscholar.org/graph/v1/author/{author_id}',
@@ -84,7 +138,7 @@ def author_details(author_id):
 
 def get_author_papers(authorId, limit=250):
     rsp = requests.get(f'https://api.semanticscholar.org/graph/v1/author/{authorId}/papers',
-                       params={'fields': 'year', 'limit': 250},
+                       params={'fields': 'year', 'limit': limit},
                        headers=ss_headers)
     rsp.raise_for_status()
     return rsp.json()['data']
@@ -97,17 +151,21 @@ def get_paper_details(paperIds):
     rsp.raise_for_status()
     return rsp.json()
 
-def get_papers(authorId, authorName, start_year, end_year):
-    papers = get_author_papers(authorId)
+def get_papers(authorId, author_name, start_year, end_year):
+    authorId_list = authorId.split(',')
+    papers = []
+    for aId in authorId_list:
+        papers += get_author_papers(aId)
     coauthor_counter = Counter()
     papers = [paper for paper in papers if paper['year']]
+    papers = sorted(papers, key=lambda x: x['year'], reverse=True)
     papers = [paper for paper in papers if start_year <= int(paper['year']) <= end_year]
     if not papers:
         return [], {}
     paperIds = [paper['paperId'] for paper in papers]
     paper_details = get_paper_details(paperIds)
     for paper in paper_details:
-        coauthor_counter.update([author['name'] for author in paper['authors'] if author['name'] != authorName])
+        coauthor_counter.update([author['name'] for author in paper['authors'] if author['name'] != author_name])
     coauthor_counter = dict(coauthor_counter)
     papers_details_minimal = []
     for paper in paper_details:

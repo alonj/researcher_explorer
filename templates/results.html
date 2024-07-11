@@ -40,11 +40,14 @@
                     </span>
                     {% else %}
                         <!-- Other pages, clickable -->
-                        <a href="{{ url_for('results', author_id=value.authorId, start_year=value.start_year, end_year=value.end_year) }}" class="text-blue-500 hover:text-blue-700 flex-1">
+                        <a href="{{ url_for('results', author_id=value.authorId, author_name=value.author_name, start_year=value.start_year, end_year=value.end_year) }}" class="text-blue-500 hover:text-blue-700 flex-1">
                             {{ value.author_name }}{{ indexString }} ({{ value.start_year }}-{{ value.end_year }})
                         </a>
                     {% endif %}
                     <form action="{{ url_for('delete_result', cache_key=key) }}" method="post" class="inline">
+                        <input type="hidden" name="current_author_id" value="{{ request.args.get('author_id') }}">
+                        <input type="hidden" name="current_start_year" value="{{ request.args.get('start_year') }}">
+                        <input type="hidden" name="current_end_year" value="{{ request.args.get('end_year') }}">
                         <div class="text-right">
                             <button type="submit" class="bg-white-500 hover:bg-red-500 text-black hover:text-white font-bold py-1 rounded inline-flex items-center">
                                 <svg class="w-6 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
@@ -59,7 +62,7 @@
         <div class="flex-1 p-8">
             <h1 class="text-3xl font-bold mb-8">{{ pretty_name }}</h1>
             <a href="https://www.semanticscholar.org/author/{{ result.authorId }}" target="_blank" class="inline-flex items-center text-blue-500 hover:text-blue-700">
-                Profile on Semantic Scholar
+                Author Profile on Semantic Scholar
                 <svg class="ml-1 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="40" d="M57.7 193l9.4 16.4c8.3 14.5 21.9 25.2 38 29.8L163 255.7c17.2 4.9 29 20.6 29 38.5v39.9c0 11 6.2 21 16 25.9s16 14.9 16 25.9v39c0 15.6 14.9 26.9 29.9 22.6c16.1-4.6 28.6-17.5 32.7-33.8l2.8-11.2c4.2-16.9 15.2-31.4 30.3-40l8.1-4.6c15-8.5 24.2-24.5 24.2-41.7v-8.3c0-12.7-5.1-24.9-14.1-33.9l-3.9-3.9c-9-9-21.2-14.1-33.9-14.1H257c-11.1 0-22.1-2.9-31.8-8.4l-34.5-19.7c-4.3-2.5-7.6-6.5-9.2-11.2c-3.2-9.6 1.1-20 10.2-24.5l5.9-3c6.6-3.3 14.3-3.9 21.3-1.5l23.2 7.7c8.2 2.7 17.2-.4 21.9-7.5c4.7-7 4.2-16.3-1.2-22.8l-13.6-16.3c-10-12-9.9-29.5 .3-41.3l15.7-18.3c8.8-10.3 10.2-25 3.5-36.7l-2.4-4.2c-3.5-.2-6.9-.3-10.4-.3C163.1 48 84.4 108.9 57.7 193zM464 256c0-36.8-9.6-71.4-26.4-101.5L412 164.8c-15.7 6.3-23.8 23.8-18.5 39.8l16.9 50.7c3.5 10.4 12 18.3 22.6 20.9l29.1 7.3c1.2-9 1.8-18.2 1.8-27.5zM0 256a256 256 0 1 1 512 0A256 256 0 1 1 0 256z"></path></svg>
             </a>
             <br>
@@ -68,9 +71,9 @@
                 <br><br>
                 <h2 class="text-2xl font-bold mb-4">{{ result.first_name }} {{ result.last_name }}</h2>
                 <p class="mb-4"><strong>Analysis for {{ result.start_year }} - {{ result.end_year }}</strong></p>
-                
                 <h3 class="text-xl font-bold mb-2"></h3>
                 <p>{{ result.analysis | replace('\n\n', '\n') | replace('\n', '<br>') | replace('**', '') | safe }}</p>
+                <br><br>
                 <div class="flex justify-center items-center h-full">
                     <div class="w-3/4 px-4">
                         <canvas id="trendChart" width="100" height="20"></canvas>
@@ -85,13 +88,16 @@
                             {% for paper in result.papers %}
                                 <li class="mb-2 paper-item" data-topic="{{ paper.topic }}">
                                     <a href="#" class="show-abstract" data-abstract="{{ paper.abstract }}" data-title="{{ paper.title }}"><strong>{{ paper.title }}</strong></a>
-                                     ({{ paper.year }})<br>
-                                     <div class="paper-authors" data-full-authors="{{ paper.authors }}">
+                                    ({{ paper.year }})<br>
+                                    <div class="paper-authors" data-full-authors="{{ paper.authors }}">
                                         {{ paper.authors | truncate(150) }}
                                     </div>
-                                    <br>
-                                    <a href="{{ paper.url }}" target="_blank" class="text-blue-500 hover:text-blue-700">View paper</a>
+                                    <a href="{{ paper.url }}" target="_blank" class="text-blue-500 hover:text-blue-700">Paper Page</a>
+                                    <span class="mx-2"></span>
+                                    <a href="{{ paper.url | replace('paper', 'reader') }}" target="_blank" class="text-blue-500 hover:text-blue-700">Semantic Reader</a>
                                 </li>
+                                </li>
+                                <br>
                             {% endfor %}
                         </ul>
                     </div>
@@ -284,7 +290,15 @@
                 options: {
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            ticks: {
+                                // Use a callback function to return only integer values
+                                callback: function(value) {
+                                    if (value % 1 === 0) {
+                                        return value;
+                                    }
+                                }
+                            }
                         }
                     },
                     plugins: {
